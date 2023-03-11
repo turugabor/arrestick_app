@@ -48,28 +48,26 @@ def get_alphafold_data(entry_name):
             tuple of sequence and confidence array: the protein sequence from the alphafold website with the model confidence array. 
                             If the entry is not available on the server, "x" insted of the sequence and an array of [0] as the confidence is returned
         """
-        try:
-            if "_" in entry_name:
-                entry = entries[entry_name]
-                
-            else:
-                entry = entry_name
-            
-            connection = urllib.request.urlopen(f"https://alphafold.ebi.ac.uk/files/AF-{entry}-F1-model_v4.cif")
-            databytes = connection.read()
-            connection.close()
-            cif_txt = databytes.decode("utf8")
 
-            f = io.StringIO(cif_txt)
-            cif = pdbx.PDBxFile.read(f)
+        if "_" in entry_name:
+            entry = entries[entry_name]
             
-            confidence = pd.DataFrame(cif.get_category("ma_qa_metric_local")).metric_value.astype(float).values
-            sequence = cif.get_category("entity_poly")["pdbx_seq_one_letter_code"]
-
-            return sequence, confidence
+        else:
+            entry = entry_name
         
-        except:
-            pass
+        connection = urllib.request.urlopen(f"https://alphafold.ebi.ac.uk/files/AF-{entry}-F1-model_v4.cif")
+        databytes = connection.read()
+        connection.close()
+        cif_txt = databytes.decode("utf8")
+
+        f = io.StringIO(cif_txt)
+        cif = pdbx.PDBxFile.read(f)
+        
+        confidence = pd.DataFrame(cif.get_category("ma_qa_metric_local")).metric_value.astype(float).values
+        sequence = cif.get_category("entity_poly")["pdbx_seq_one_letter_code"]
+
+        return sequence, confidence
+        
 
 def plot(seq, confidence = None):
     
@@ -105,43 +103,43 @@ def plot(seq, confidence = None):
         subfig.layout.yaxis2.update(visible=False, showticklabels=False)
         subfig.layout.yaxis.title="Convolutional value"
 
-    
         st.plotly_chart(subfig)
          
     else:
         fig = px.line(data_frame=data, y="Convolutional value", x = "Amino acid position", hover_data=["region"])
         st.plotly_chart(fig)
     
-    
 entries = get_dicts()
 amino_acids, embeddings, aa_dict, kernel, bias = get_params()
 
 with st.form("entry_form"):
-   entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN")
+    st.header("Convolute a protein")
+    entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN")
 
-   # Every form must have a submit button.
-   submitted = st.form_submit_button("Convolute")
-   if submitted:
-        try:
-            seq, confidence = get_alphafold_data(entry_name)
-       
-            plot(seq, confidence)
-        except:
-            st.write("invalid protein name or other error")   
-
+    # Every form must have a submit button.
+    submitted = st.form_submit_button("Convolute")
+    if submitted:
+            try:
+                seq, confidence = get_alphafold_data(entry_name)
+        
+                plot(seq, confidence)
+            except:
+                st.write("invalid protein entry name or other error")   
 
 
 with st.form("seq_form"):
-    seq = st.text_area('Replace protein sequence', '''
-    MLMASTTSAVPGHPSLPSLPSNSSQERPLDTRDPLLARAELALLSIVFVAVALSNGLVLA
-    ALARRGRRGHWAPIHVFIGHLCLADLAVALFQVLPQLAWKATDRFRGPDALCRAVKYLQM
-    VGMYASSYMILAMTLDRHRAICRPMLAYRHGSGAHWNRPVLVAWAFSLLLSLPQLFIFAQ
-    RNVEGGSGVTDCWACFAEPWGRRTYVTWIALMVFVAPTLGIAACQVLIFREIHASLVPGP
-    SERPGGRRRGRRTGSPGEGAHVSAAVAKTVRMTLVIVVVYVLCWAPFFLVQLWAAWDPEA
-    PLEGAPFVLLMLLASLNSCTNPWIYASFSSSVSSELRSLLCCARGRTPPSLGPQDESCTT
-    ASSSLAKDTSS''').replace("\n", "").replace(" ", "")
+    st.header("Convolute custom protein sequence")
+    seq = st.text_area('Enter protein sequence here', 
+                       '''MLMASTTSAVPGHPSLPSLPSNSSQERPLDTRDPLLARAELALLSIVFVAVALSNGLVLAALARRGRRGHWAPIHVFIGHLCLADLAVALFQVLPQLAWKATDRFRGPDALCRAVKYLQMVGMYASSYMILAMTLDRHRAICRPMLAYRHGSGAHWNRPVLVAWAFSLLLSLPQLFIFAQRNVEGGSGVTDCWACFAEPWGRRTYVTWIALMVFVAPTLGIAACQVLIFREIHASLVPGPSERPGGRRRGRRTGSPGEGAHVSAAVAKTVRMTLVIVVVYVLCWAPFFLVQLWAAWDPEAPLEGAPFVLLMLLASLNSCTNPWIYASFSSSVSSELRSLLCCARGRTPPSLGPQDESCTTASSSLAKDTSS''').upper().replace("\n", "").replace(" ", "")
+    
     submitted = st.form_submit_button("Convolute")
     if submitted:
-        plot(seq)
+        #remove non amino acid characters
+        seq_cleaned = "".join([a for a in seq if a in amino_acids])
+        
+        if len(seq_cleaned) != len(seq):
+            st.write("Non amino acid characters were removed")
+            
+        plot(seq_cleaned)
 
 
