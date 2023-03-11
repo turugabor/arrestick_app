@@ -1,5 +1,4 @@
 numpy
 plotly
 pandas
-urllib
 biotite
