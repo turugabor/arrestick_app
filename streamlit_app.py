@@ -1,7 +1,5 @@
 import streamlit as st
-import seaborn as sns
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.express as px
 from plotly.subplots import make_subplots
 import pandas as pd
