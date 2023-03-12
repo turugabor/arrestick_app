@@ -114,7 +114,7 @@ amino_acids, embeddings, aa_dict, kernel, bias = get_params()
 
 with st.form("entry_form"):
     st.header("Convolute a protein")
-    entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN")
+    entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
 
     # Every form must have a submit button.
     submitted = st.form_submit_button("Convolute")
