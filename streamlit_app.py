@@ -10,7 +10,10 @@ import io
 import yaml
 from yaml import CLoader as Loader
 
+st.set_page_config(layout="wide")
+
 st.title('arreSTick')
+
 
 @st.cache_data
 def get_dicts():
@@ -93,22 +96,21 @@ def plot(seq, confidence = None):
     ymax = 1
     
     for i, row in data.iterrows():
-        data.loc[i, "region"] = f"{i+1}:{seq[i:i+15]}"
+        data.loc[i, "region"] = f"{i+1}-{i+16} {seq[i:i+15]}"
         
-    
-    
+        
     if confidence is not None:
+        
         data['alphafold'] = [1 if conf>70 else 0 for conf in confidence]
         data["structure"] = ['>70' if conf>70 else '≤70' for conf in confidence]
         subfig = make_subplots(specs=[[{"secondary_y": True}]])
         
         plot = px.line(data_frame=data, y="probability", x = "Amino acid position", hover_data=["region"],
                     color_discrete_sequence=["black"])
+        
         plot.update_layout(yaxis_range=[ymin, 1])
         
-
-
-        # fig2.update(data=[{'customdata':data.structure.values.reshape(1,-1), 'hovertemplate': 'Alphafold score: %{customdata}'}])
+        plot.update_traces(customdata = data.region, hovertemplate = 'Position: %{x} <br>Probability: %{y:.2f} <br>Region: %{customdata} ')
 
         heatmap_range = np.arange(ymin, ymax)
 
@@ -117,46 +119,78 @@ def plot(seq, confidence = None):
                 z=np.concatenate([data.alphafold.values.reshape(1,-1)]),
                 x= data["Amino acid position"],
                 y = [0,1],
-                colorscale=["#2d3142","#ef8354"])
+                colorscale=["#ef8354", "#2d3142"],
+                customdata=np.concatenate([data.structure.values.reshape(1,-1)]*heatmap_range.shape[0]),
+                hovertemplate='Alphafold confidence: %{customdata}',
+                name="",
+                showscale=False,
+                opacity=0.6)
         
-        trace1.update(dict(showscale=False), opacity=0.3)
         subfig.add_trace(trace1)
         
         
         
         subfig.add_traces(plot.data)
-        
+               
         
         subfig.layout.xaxis.title="Amino acid position"
         subfig.layout.yaxis.title="arreSTick sequence probability"
         subfig.layout.yaxis2.update(visible=False, showticklabels=False)
 
+        # add legends
+        subfig.add_shape(type="rect",
+                x0=0, y0=1.05, x1=20, y1=1.10,
+            line=dict(color="#ef8354"), fillcolor="#ef8354", opacity=0.6
+            )
+        
+        subfig.add_annotation(x=25, y=1.08, xanchor="left",
+            text="Alphafold confidence ≤ 70",
+            showarrow=False,    
+            )
+        
+        subfig.add_shape(type="rect",
+                x0=0, y0=1.12, x1=20, y1=1.17,
+            line=dict(color="#2d3142"), fillcolor="#2d3142", opacity=0.6
+            )
+        
+        subfig.add_annotation(x=25, y=1.15, xanchor="left",
+            text="Alphafold confidence > 70",
+            showarrow=False,    
+            )
+        
+        # set background to white
+        subfig.update_layout(paper_bgcolor='white',plot_bgcolor='white')
 
         st.plotly_chart(subfig)
          
     else:
-        fig = px.line(data_frame=data, y="proba", x = "Amino acid position", hover_data=["region"])
-        fig.layout.yaxis.title="arreSTick sequence probability"
-        st.plotly_chart(fig)
+        plot = px.line(data_frame=data, y="probability", x = "Amino acid position", hover_data=["region"])
+        plot.layout.yaxis.title="arreSTick sequence probability"
+        
+        plot.update_traces(customdata = data.region, hovertemplate = 'Position: %{x} <br>Probability: %{y:.2f} <br>Region: %{customdata} ')
+        st.plotly_chart(plot)
     
 entries = get_dicts()
 aa_dict, kernel, bias, sigmoid_weight, sigmoid_bias = get_params()
 
 with st.form("entry_form"):
     st.header("Convolute a protein")
-    entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
+    columns = st.columns(3)
+    with columns[0]:
+        entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
 
     # Every form must have a submit button.
     submitted = st.form_submit_button("Convolute")
     if submitted:
+            st.text("Move your cursor over the plot for additional information")
             try:
-                seq, confidence = get_alphafold_data(entry_name)
-        
+                seq, confidence = get_alphafold_data(entry_name)   
+                plot(seq, confidence)     
                 
             except:
                 st.write("invalid protein entry name or other error")   
 
-            plot(seq, confidence)
+            
 with st.form("seq_form"):
     st.header("Convolute custom protein sequence")
     seq = st.text_area('Enter protein sequence here', 
@@ -164,6 +198,7 @@ with st.form("seq_form"):
     
     submitted = st.form_submit_button("Convolute")
     if submitted:
+        st.text("Move your cursor over the plot for additional information")
         #remove non amino acid characters
         seq_cleaned = "".join([a for a in seq if a in "QWERTIPASDFGHKLYCVNM"])
         
