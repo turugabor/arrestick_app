@@ -173,9 +173,8 @@ aa_dict, kernel, bias, sigmoid_weight, sigmoid_bias = get_params()
 
 with st.form("entry_form"):
     st.header("Convolute a protein")
-    columns = st.columns(3)
-    with columns[0]:
-        entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
+    
+    entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
 
     # Every form must have a submit button.
     submitted = st.form_submit_button("Convolute")
