@@ -2,11 +2,13 @@ import streamlit as st
 import numpy as np
 import plotly.express as px
 from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import pandas as pd
 import urllib
 import biotite.structure.io.pdbx as pdbx
 import io
-
+import yaml
+from yaml import CLoader as Loader
 
 st.title('arreSTick')
 
@@ -19,18 +21,24 @@ def get_dicts():
 
 @st.cache_data
 def get_params():
-    amino_acids = "QWERTIPASDFGHKLYCVNM"
-    embeddings = [-2.1997268, -1.1420017, -0.37575176, -2.1997268, 1.3075894, -2.1997268, -1.1420017, -2.1997268, 1.3075894, -0.37575176, -0.37575176, -1.1420017, -1.1420017, -2.1997268, -1.1420017, -1.1420017, -1.1420017, -0.37575176, -1.1420017, -0.37575176]
-    aa_dict = dict(zip(list(amino_acids), embeddings))
+    with open("model_params", "r") as f:
+        params = yaml.load(f, Loader)
+        
+    aa_dict = params["model_1"]["aa_dict"]
 
-    kernel = np.array([1.3060381 , 0.5402229 , 0.36126667, 1.6820629 , 0.37439126,
-        0.83508617, 0.9705989 , 0.6321398 , 0.5831004 , 0.21672164,
-        1.3454887 , 0.5097931 , 0.77933246, 0.2553734 , 1.1463245 ])
+    kernel = np.array(params["model_1"]["kernel_weights"])
 
-    bias = -0.2149748
+    bias = params["model_1"]["conv_bias"]
     
-    return amino_acids, embeddings, aa_dict, kernel, bias
+    sigmoid_weight = params["model_1"]["sigmoid_weight"]
+    sigmoid_bias = params["model_1"]["sigmoid_bias"]
+    
+    return aa_dict, kernel, bias, sigmoid_weight, sigmoid_bias
 
+
+def sigmoid(x, sigmoid_weight, sigmoid_bias):
+    return 1 / (1 + np.exp(-sigmoid_weight * x - sigmoid_bias))
+    
 
 def convolve(seq, kernel, aa_dict, bias):
     seq_translated = np.array(list(map(lambda x: aa_dict[x], seq)))
@@ -78,6 +86,12 @@ def plot(seq, confidence = None):
 
     data = pd.DataFrame([convoluted, list(seq), np.arange(len(seq))+1], index=["Convolutional value", "Amino acid", "Amino acid position"]).transpose()
     data["region"] = ""
+    
+    data["proba"] = data["Convolutional value"].apply(lambda x: sigmoid(x, sigmoid_weight, sigmoid_bias))
+    
+    ymin = 0
+    ymax = 1
+    
     for i, row in data.iterrows():
         data.loc[i, "region"] = f"{i+1}:{seq[i:i+15]}"
         
@@ -88,29 +102,45 @@ def plot(seq, confidence = None):
         data["structure"] = ['>70' if conf>70 else '≤70' for conf in confidence]
         subfig = make_subplots(specs=[[{"secondary_y": True}]])
         
-        fig1 = px.line(data_frame=data, y="Convolutional value", x = "Amino acid position", hover_data=["region"],
+        plot = px.line(data_frame=data, y="proba", x = "Amino acid position", hover_data=["region"],
                     color_discrete_sequence=["grey"])
-        fig2 = px.imshow(data.alphafold.values.reshape(1,-1), height=50)
+        plot.update_layout(yaxis_range=[ymin, 1])
+        
 
-        fig2.update_traces(dict(showscale=False, 
-                            coloraxis=None), selector={'type':'heatmap'})
 
-        fig2.update(data=[{'customdata':data.structure.values.reshape(1,-1), 'hovertemplate': 'Alphafold score: %{customdata}'}])
+        # fig2.update(data=[{'customdata':data.structure.values.reshape(1,-1), 'hovertemplate': 'Alphafold score: %{customdata}'}])
 
-        subfig.add_traces(fig1.data + fig2.data)
+        heatmap_range = np.arange(ymin, ymax)
+
+        # create trace for the the alphafold structure heatmap
+        trace1 = go.Heatmap(
+                z=np.concatenate([data.alphafold.values.reshape(1,-1)]),
+                x= data["Amino acid position"],
+                y = [0,1],
+                colorscale='Viridis')
+        
+        trace1.update(dict(showscale=False), opacity=0.2)
+        subfig.add_trace(trace1)
+        
+        zero_line = px.line(y=[0]*data["Amino acid position"].shape[0], x = data["Amino acid position"], color_discrete_sequence=["black"])
+        
+        subfig.add_traces(plot.data + zero_line.data)
+        
+        
         subfig.layout.xaxis.title="Amino acid position"
-        subfig.layout.yaxis.title="Convolutional value"
+        subfig.layout.yaxis.title="arreSTick sequence probability"
         subfig.layout.yaxis2.update(visible=False, showticklabels=False)
-        subfig.layout.yaxis.title="Convolutional value"
+
 
         st.plotly_chart(subfig)
          
     else:
-        fig = px.line(data_frame=data, y="Convolutional value", x = "Amino acid position", hover_data=["region"])
+        fig = px.line(data_frame=data, y="proba", x = "Amino acid position", hover_data=["region"])
+        fig.layout.yaxis.title="arreSTick sequence probability"
         st.plotly_chart(fig)
     
 entries = get_dicts()
-amino_acids, embeddings, aa_dict, kernel, bias = get_params()
+aa_dict, kernel, bias, sigmoid_weight, sigmoid_bias = get_params()
 
 with st.form("entry_form"):
     st.header("Convolute a protein")
@@ -122,11 +152,11 @@ with st.form("entry_form"):
             try:
                 seq, confidence = get_alphafold_data(entry_name)
         
-                plot(seq, confidence)
+                
             except:
                 st.write("invalid protein entry name or other error")   
 
-
+            plot(seq, confidence)
 with st.form("seq_form"):
     st.header("Convolute custom protein sequence")
     seq = st.text_area('Enter protein sequence here', 
@@ -135,7 +165,7 @@ with st.form("seq_form"):
     submitted = st.form_submit_button("Convolute")
     if submitted:
         #remove non amino acid characters
-        seq_cleaned = "".join([a for a in seq if a in amino_acids])
+        seq_cleaned = "".join([a for a in seq if a in "QWERTIPASDFGHKLYCVNM"])
         
         if len(seq_cleaned) != len(seq):
             st.write("Non amino acid characters were removed")
