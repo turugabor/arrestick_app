@@ -87,7 +87,7 @@ def plot(seq, confidence = None):
     data = pd.DataFrame([convoluted, list(seq), np.arange(len(seq))+1], index=["Convolutional value", "Amino acid", "Amino acid position"]).transpose()
     data["region"] = ""
     
-    data["proba"] = data["Convolutional value"].apply(lambda x: sigmoid(x, sigmoid_weight, sigmoid_bias))
+    data["probability"] = data["Convolutional value"].apply(lambda x: sigmoid(x, sigmoid_weight, sigmoid_bias))
     
     ymin = 0
     ymax = 1
@@ -102,7 +102,7 @@ def plot(seq, confidence = None):
         data["structure"] = ['>70' if conf>70 else '≤70' for conf in confidence]
         subfig = make_subplots(specs=[[{"secondary_y": True}]])
         
-        plot = px.line(data_frame=data, y="proba", x = "Amino acid position", hover_data=["region"],
+        plot = px.line(data_frame=data, y="probability", x = "Amino acid position", hover_data=["region"],
                     color_discrete_sequence=["grey"])
         plot.update_layout(yaxis_range=[ymin, 1])
         
@@ -117,14 +117,14 @@ def plot(seq, confidence = None):
                 z=np.concatenate([data.alphafold.values.reshape(1,-1)]),
                 x= data["Amino acid position"],
                 y = [0,1],
-                colorscale='Viridis')
+                colorscale=["#2d3142","#ef8354"])
         
-        trace1.update(dict(showscale=False), opacity=0.2)
+        trace1.update(dict(showscale=False), opacity=0.3)
         subfig.add_trace(trace1)
         
-        zero_line = px.line(y=[0]*data["Amino acid position"].shape[0], x = data["Amino acid position"], color_discrete_sequence=["black"])
         
-        subfig.add_traces(plot.data + zero_line.data)
+        
+        subfig.add_traces(plot.data)
         
         
         subfig.layout.xaxis.title="Amino acid position"
