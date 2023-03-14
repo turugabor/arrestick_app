@@ -10,8 +10,6 @@ import io
 import yaml
 from yaml import CLoader as Loader
 
-st.set_page_config(layout="wide")
-
 st.title('arreSTick')
 
 
