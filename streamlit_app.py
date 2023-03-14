@@ -103,7 +103,7 @@ def plot(seq, confidence = None):
         subfig = make_subplots(specs=[[{"secondary_y": True}]])
         
         plot = px.line(data_frame=data, y="probability", x = "Amino acid position", hover_data=["region"],
-                    color_discrete_sequence=["grey"])
+                    color_discrete_sequence=["black"])
         plot.update_layout(yaxis_range=[ymin, 1])
         
 
