@@ -78,13 +78,8 @@ def get_alphafold_data(entry_name):
         return sequence, confidence
         
 
-def plot(seq, confidence = None):
+def plot(seq, convoluted, confidence = None):
     
-    convoluted = convolve(seq, kernel, aa_dict, bias)
-    nans = np.empty(14)
-    nans[:] = np.nan
-    convoluted = np.append(convoluted, nans)
-
     data = pd.DataFrame([convoluted, list(seq), np.arange(len(seq))+1], index=["Convolutional value", "Amino acid", "Amino acid position"]).transpose()
     data["region"] = ""
     
@@ -175,6 +170,7 @@ with st.form("entry_form"):
     st.header("Convolute a protein")
     
     entry_name = st.text_input("Uniprot entry or entry name (e.g. V2R_HUMAN or P30518)", "V2R_HUMAN").upper()
+    show_fasta = st.checkbox("Display FASTA sequence")
 
     # Every form must have a submit button.
     submitted = st.form_submit_button("Convolute")
@@ -182,10 +178,28 @@ with st.form("entry_form"):
             st.text("Move your cursor over the plot for additional information")
             try:
                 seq, confidence = get_alphafold_data(entry_name)   
-                plot(seq, confidence)     
+                convoluted = convolve(seq, kernel, aa_dict, bias)
+                nans = np.empty(14)
+                nans[:] = np.nan
+                convoluted = np.append(convoluted, nans)
                 
+                plot(seq, convoluted, confidence)   
+                 
+                if show_fasta:
+                    st.text("FASTA (sequence with max probability displayed with upper case)")
+                    position = np.argmax(convoluted[:-15])
+                    seq = "".join([x.lower() if ((i < position) | (i > position+14)) else x.upper() for i,x in enumerate(seq)])
+                    
+                    fasta = ""
+                    for i in range(0,len(seq),50):
+                        fasta += f"{i+1} \t {seq[i:i+50]}\n"
+                    st.text(fasta)   
+               
             except:
-                st.write("invalid protein entry name or other error")   
+                st.write("invalid protein entry name or other error")  
+    
+                     
+            
 
             
 with st.form("seq_form"):
@@ -202,6 +216,11 @@ with st.form("seq_form"):
         if len(seq_cleaned) != len(seq):
             st.write("Non amino acid characters were removed")
             
-        plot(seq_cleaned)
+        convoluted = convolve(seq_cleaned, kernel, aa_dict, bias)
+        nans = np.empty(14)
+        nans[:] = np.nan
+        convoluted = np.append(convoluted, nans)
+            
+        plot(seq, convoluted)
 
 
