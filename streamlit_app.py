@@ -216,11 +216,13 @@ with st.form("seq_form"):
         if len(seq_cleaned) != len(seq):
             st.write("Non amino acid characters were removed")
             
+        
+            
         convoluted = convolve(seq_cleaned, kernel, aa_dict, bias)
         nans = np.empty(14)
         nans[:] = np.nan
         convoluted = np.append(convoluted, nans)
             
-        plot(seq, convoluted)
+        plot(seq_cleaned, convoluted)
 
 
